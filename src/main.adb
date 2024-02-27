@@ -1,41 +1,41 @@
 with Ada.Text_IO;
 
-procedure Main is
+procedure Main is   
+   Can_Stop : Boolean := False;
+   pragma Atomic (Can_Stop);
+   Step : Long_Long_Integer := 1;
 
-   can_stop : boolean := false;
-   pragma Atomic(can_stop);
+   task type Stop_Thread;
+   task type Sum_Thread(ID:Integer);
 
-   task type break_thread;
-   task type main_thread(id: Integer);
-
-   task body break_thread is
+   task body Stop_Thread is
    begin
-      delay 5.0;
-      can_stop := true;
-   end break_thread;
+      delay 3.0;
+      Can_Stop := True;
+   end Stop_Thread;
 
-   task body main_thread is
-      sum : Long_Long_Integer := 0;
-      count : Long_Long_Integer := 0;
+   task body Sum_Thread is
+      Additions : Long_Long_Integer := 0;
+      Sum : Long_Long_Integer := 0;
    begin
       loop
-         sum := sum + count;
-         count := count + 1;
-         exit when can_stop;
+         exit when Can_Stop;
+         Sum := Sum + (Additions * Step);
+         Additions := Additions + 1;
       end loop;
 
-      Ada.Text_IO.Put_Line("Thread: " & id'Img & " Sum: " & sum'Img & " Count: " & count'Img);
-   end main_thread;
 
-   b1 : break_thread;
-   t1 : main_thread(1);
-   t2 : main_thread(2);
-   t3 : main_thread(3);
-   t4 : main_thread(4);
-   t5 : main_thread(5);
-   t6 : main_thread(6);
-   t7 : main_thread(7);
+         Ada.Text_IO.Put_Line("Thread " &ID'Img& " - Sum: "&Sum'Img&" - Additions: "&Additions'Img);
 
+
+   end Sum_Thread;
+
+   B1 : Stop_Thread;
+      
+Threads : array(1..6) of access Sum_Thread; 
 begin
-   null;
+   
+   for I in 1..6 loop
+      Threads(I) := new Sum_Thread(I);
+   end loop;
 end Main;
