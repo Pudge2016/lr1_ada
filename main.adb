@@ -1,116 +1,94 @@
-with Ada.Text_IO; use Ada.Text_IO;
-with Ada.Numerics.Discrete_Random;
+with Ada.Text_IO, GNAT.Semaphores;
+use Ada.Text_IO, GNAT.Semaphores;
+
+with Ada.Containers.Indefinite_Doubly_Linked_Lists;
+use Ada.Containers;
+
+procedure Consumer_Producer is
+   package String_Lists is new Indefinite_Doubly_Linked_Lists (String);
+   use String_Lists;
+
+   procedure Starter (Storage_Size : in Integer) is
+      Storage : List;
+      Full   : Counting_Semaphore (Storage_Size, Default_Ceiling);
+      Empty  : Counting_Semaphore (0, Default_Ceiling);
+      Access_Storage : Counting_Semaphore (1, Default_Ceiling);
+
+      task type Consumer is
+         entry Start(Item_Numbers:Integer);
+      end;
+
+      task type Producer is
+         entry Start(Item_Numbers:Integer);
+      end;
 
 
-procedure Main is
-
-   Size : constant Integer := 1000;
-   Thread_Num : constant Integer := 5;
-
-   Arr : array(1..Size) of Integer;
-   Min_Element : Integer := Integer'Last;
-   Min_Index : Integer := 1;
-
-
-
-
-   procedure Init_Arr is
-      subtype Random_Range is Integer range 1 .. 10000;
-      package R is new Ada.Numerics.Discrete_Random (Random_Range);
-      use R;
-
-      G : Generator;
-      X : Random_Range;
-   begin
-      Reset(G);
-
-      for I in 1..Size loop
-         X := Random(G);
-         Arr(I) := X;
-
-          --  if X mod 2 = 0 then
-          --   Arr(I) := -Arr(I);
-          --  end if;
-      end loop;
-end Init_Arr;
-
-
-   procedure Part_Min(Start_Index, Finish_Index : in Integer) is
-   begin
-      for I in Start_Index..Finish_Index loop
-         if Arr(I) < Min_Element then
-            Min_Element := Arr(I);
-            Min_Index := I;
-         end if;
-      end loop;
-   end Part_Min;
-
-   task type Starter_Thread is
-      entry Start(Start_Index, Finish_Index : in Integer);
-   end Starter_Thread;
-
-   protected Part_Manager is
-      procedure Set_Part_Min(Element : in Integer; Index : in Integer);
-      entry Get_Min(Element : out Integer; Index : out Integer);
-   private
-      Tasks_Count : Integer := 0;
-      Min_Element1 : Integer := Integer'Last;
-      Min_Index1 : Integer := 1;
-   end Part_Manager;
-
-   protected body Part_Manager is
-      procedure Set_Part_Min(Element : in Integer; Index : in Integer) is
+      task body Consumer is
+         Item_Numbers : Integer;
       begin
-         if Element < Min_Element1 then
-            Min_Element1 := Element;
-            Min_Index1 := Index;
-         end if;
-         Tasks_Count := Tasks_Count + 1;
-      end Set_Part_Min;
+           accept Start (Item_Numbers : in Integer) do
+              Consumer.Item_Numbers := Item_Numbers;
+           end Start;
 
-      entry Get_Min(Element : out Integer; Index : out Integer) when Tasks_Count = Thread_Num is
+         for i in 1 .. Item_Numbers loop
+            Empty.Seize;
+            Access_Storage.Seize;
+
+            declare
+               item : String := First_Element (Storage);
+            begin
+               Put_Line ("Took " & item);
+            end;
+
+            Storage.Delete_First;
+
+            Access_Storage.Release;
+            Full.Release;
+
+            delay 0.3;
+         end loop;
+
+      end Consumer;
+
+      task body Producer is
+           Item_Numbers : Integer;
       begin
-         Element := Min_Element1;
-         Index := Min_Index1;
-      end Get_Min;
+           accept Start (Item_Numbers : in Integer) do
+              Producer.Item_Numbers := Item_Numbers;
+           end Start;
 
-   end Part_Manager;
+         for i in 1 .. Item_Numbers loop
+            Full.Seize;
+            Access_Storage.Seize;
 
-   task body Starter_Thread is
-      Start_Index, Finish_Index : Integer;
-   begin
-      accept Start(Start_Index, Finish_Index : in Integer) do
-         Starter_Thread.Start_Index := Start_Index;
-         Starter_Thread.Finish_Index := Finish_Index;
-      end Start;
-      Part_Min(Start_Index  => Start_Index,
-               Finish_Index => Finish_Index);
-      Part_Manager.Set_Part_Min(Min_Element, Min_Index);
-   end Starter_Thread;
+            Storage.Append ("item " & i'Img);
+            Put_Line ("Added item " & i'Img);
 
-   function Parallel_Min return Integer is
-      Min : Integer := Integer'Last;
-      Index : Integer := 1;
-      Thread : array(1..Thread_Num) of Starter_Thread;
-   begin
-      for I in 1..Thread_Num loop
-         Thread(I).Start((I - 1) * Size / Thread_Num + 1, I * Size / Thread_Num);
-      end loop;
-      Part_Manager.Get_Min(Min, Index);
-      return Min;
-   end Parallel_Min;
+            Access_Storage.Release;
+            Empty.Release;
+            delay 0.1;
+         end loop;
 
+      end Producer;
+      
+      Num_Consumers : constant := 3;
+      Num_Producers : constant := 2;
 
+      Consumers : array (1..Num_Consumers) of Consumer;
+      Producers : array (1..Num_Producers) of Producer;
+      Items_to_add_consumer: array(1..Num_Consumers) of Integer := (4, 5, 6);
+      Items_to_add_producer: array(1..Num_Producers) of Integer := (7,8);
 
-
+      begin
+         for i in Consumers'Range loop
+            Consumers(i).Start(Items_to_add_consumer(i));
+         end loop;
+      
+         for i in Producers'Range loop
+            Producers(i).Start(Items_to_add_producer(i));
+         end loop;
+      end Starter;
 
 begin
-
-   Init_Arr;
-   Put_Line("The number of elements: "&Size'Img);
-   Put_line("The number of threads: "&Thread_Num'Img);
-   Put_Line("Minimum element: " & Parallel_Min'Img);
-   Put_Line("Index of minimum element: " & Min_Index'Img);
-
-
-end Main;
+   Starter (7);
+end Consumer_Producer;
