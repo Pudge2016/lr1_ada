@@ -77,7 +77,7 @@ procedure Consumer_Producer is
       Consumers : array (1..Num_Consumers) of Consumer;
       Producers : array (1..Num_Producers) of Producer;
       Items_to_add_consumer: array(1..Num_Consumers) of Integer := (4, 5, 6);
-      Items_to_add_producer: array(1..Num_Producers) of Integer := (7,8);
+      Items_to_add_producer: array(1..Num_Producers) of Integer := (7,8); 
 
       begin
          for i in Consumers'Range loop
